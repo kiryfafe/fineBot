@@ -5,14 +5,20 @@ Telegram Bot для игры "Быки и Коровы"
 Компьютер загадывает число, а игрок должен его угадать.
 
 Для запуска:
-1. Установите зависимости: pip install python-telegram-bot
+1. Установите зависимости: pip install python-telegram-bot python-dotenv
 2. Получите токен бота от @BotFather в Telegram
-3. Запустите: python telegram_bot.py YOUR_BOT_TOKEN
+3. Создайте файл .env с переменными BOT_TOKEN и ADMIN_IDS
+4. Запустите: python telegram_bot.py
 """
 
 import random
 import logging
+import os
 from typing import Dict, Tuple
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения из файла .env
+load_dotenv()
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -1351,13 +1357,18 @@ def main() -> None:
     """Основная функция для запуска бота."""
     import sys
 
-    # Получаем токен из аргументов командной строки
-    if len(sys.argv) < 2:
-        print("Использование: python telegram_bot.py <BOT_TOKEN>")
-        print("Получите токен от @BotFather в Telegram")
-        sys.exit(1)
-
-    token = sys.argv[1]
+    # Получаем токен из переменной окружения или аргументов командной строки
+    token = os.getenv("BOT_TOKEN")
+    
+    if not token:
+        if len(sys.argv) >= 2:
+            token = sys.argv[1]
+            print("Внимание: Токен получен из аргументов командной строки. Рекомендуется использовать файл .env")
+        else:
+            print("Использование: python telegram_bot.py [BOT_TOKEN]")
+            print("Или создайте файл .env с переменной BOT_TOKEN")
+            print("Получите токен от @BotFather в Telegram")
+            sys.exit(1)
 
     # Создаём приложение
     application = Application.builder().token(token).build()
