@@ -43,6 +43,30 @@ class GameState:
         self.is_game_over = False
 
 
+class MultiplayerGame:
+    """Класс для хранения состояния мультиплеерной игры между двумя пользователями."""
+    
+    def __init__(self, player1_id: int, player2_id: int, number_length: int = 4):
+        self.player1_id = player1_id
+        self.player2_id = player2_id
+        self.number_length = number_length
+        # Каждый игрок загадывает своё число
+        self.secret_number_p1 = generate_secret_number(number_length)
+        self.secret_number_p2 = generate_secret_number(number_length)
+        # Состояния для каждого игрока
+        self.p1_attempts = 0
+        self.p2_attempts = 0
+        self.p1_history: list[Tuple[str, int, int]] = []  # Попытки игрока 1 угадать число игрока 2
+        self.p2_history: list[Tuple[str, int, int]] = []  # Попытки игрока 2 угадать число игрока 1
+        self.is_game_over = False
+        self.winner = None  # 'player1', 'player2', 'draw'
+        # Чей сейчас ход
+        self.current_turn = player1_id  # Начинает первый игрок
+        # Флаги готовности (кто уже загадал число)
+        self.p1_ready = True
+        self.p2_ready = True
+
+
 def generate_secret_number(length: int = 4) -> str:
     """
     Генерирует случайное число заданной длины без повторяющихся цифр.
@@ -105,6 +129,10 @@ def evaluate_guess(secret: str, guess: str) -> Tuple[int, int]:
 
 # Хранилище состояний игр для всех пользователей
 user_games: Dict[int, GameState] = {}
+# Хранилище мультиплеерных игр (ключ - ID игры, значение - объект MultiplayerGame)
+multiplayer_games: Dict[str, MultiplayerGame] = {}
+# Маппинг user_id -> game_id для быстрого поиска активной мультиплеерной игры пользователя
+user_to_mp_game: Dict[int, str] = {}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
