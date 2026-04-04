@@ -298,7 +298,7 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         # Подсказки для разных ситуаций
         hints = []
-        if game.attempts >= 10 and bulls == 0 and cows == 0:
+        if game.attempts >= 1 and bulls == 0 and cows == 0:
             hints.append("💡 Подсказка: ни одна цифра не подходит. Попробуй другие цифры!")
         elif game.attempts >= 15:
             hints.append("💡 Не сдавайся! Анализируй предыдущие ходы.")
@@ -311,7 +311,7 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 history_text += f"{i}. <code>{attempt_guess}</code> - 🐂{attempt_bulls} | 🐄{attempt_cows}\n"
 
         response = (
-            f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n\n"
+            f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n"
             f"{history_text}"
         )
 
