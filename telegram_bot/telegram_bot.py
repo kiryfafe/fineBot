@@ -240,9 +240,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Завершаем игру
         if user_id in user_games:
             del user_games[user_id]
+            # Показываем сообщение о завершении игры с кнопкой "Новая игра"
+            keyboard = [
+                [InlineKeyboardButton("🎮 Новая игра", callback_data="new_game")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                "❌ Игра завершена.\n"
-                "Используй кнопку «Новая игра», чтобы начать заново."
+                "❌ Игра завершена. Используй /newgame, чтобы начать заново.",
+                reply_markup=reply_markup
             )
             logger.info(f"User {user_id} cancelled the game via button")
         else:
@@ -337,8 +342,14 @@ async def cancel_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if user_id in user_games:
         del user_games[user_id]
+        # Показываем сообщение о завершении игры с кнопкой "Новая игра"
+        keyboard = [
+            [InlineKeyboardButton("🎮 Новая игра", callback_data="new_game")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "❌ Игра завершена.\nИспользуй /newgame, чтобы начать заново."
+            "❌ Игра завершена. Используй /newgame, чтобы начать заново.",
+            reply_markup=reply_markup
         )
         logger.info(f"User {user_id} cancelled the game")
     else:
