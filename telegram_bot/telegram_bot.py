@@ -279,11 +279,20 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Формируем ответ
     if bulls == game.number_length:
         game.is_game_over = True
+        
+        # Формируем историю всех попыток для отображения
+        history_text = ""
+        if game.history:
+            history_text = "\n\n<b>История попыток:</b>\n"
+            for i, (attempt_guess, attempt_bulls, attempt_cows) in enumerate(game.history, 1):
+                history_text += f"{i}. <code>{attempt_guess}</code> - 🐂{attempt_bulls} | 🐄{attempt_cows}\n"
+        
         response = (
             f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
             f"Загаданное число: <code>{game.secret_number}</code>\n"
-            f"Количество попыток: <b>{game.attempts}</b>\n\n"
-            f"Хочешь сыграть ещё? Используй /newgame"
+            f"Количество попыток: <b>{game.attempts}</b>"
+            f"{history_text}"
+            f"\nХочешь сыграть ещё? Используй /newgame"
         )
         logger.info(f"User {user_id} won in {game.attempts} attempts")
     else:
@@ -294,9 +303,17 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         elif game.attempts >= 15:
             hints.append("💡 Не сдавайся! Анализируй предыдущие ходы.")
 
+        # Формируем историю всех попыток для отображения
+        history_text = ""
+        if game.history:
+            history_text = "\n\n<b>История попыток:</b>\n"
+            for i, (attempt_guess, attempt_bulls, attempt_cows) in enumerate(game.history, 1):
+                history_text += f"{i}. <code>{attempt_guess}</code> - 🐂{attempt_bulls} | 🐄{attempt_cows}\n"
+
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n\n"
-            f"Попытка #{game.attempts}: {guess}\n"
+            f"Попытка #{game.attempts}: {guess}"
+            f"{history_text}"
         )
 
         if hints:
