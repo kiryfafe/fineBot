@@ -110,21 +110,170 @@ user_games: Dict[int, GameState] = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start."""
     user = update.effective_user
-    await update.message.reply_html(
-        f"Привет, {user.mention_html()}! 🎮\n\n"
-        "Я бот для игры <b>«Быки и Коровы»</b>!\n\n"
-        "<b>Правила игры:</b>\n"
-        "• Я загадываю число с уникальными цифрами\n"
-        "• Ты пытаешься его угадать\n"
-        "• После каждой попытки я говорю:\n"
-        "  🐂 <b>Быки</b> — цифры на правильных местах\n"
-        "  🐄 <b>Коровы</b> — правильные цифры не на своих местах\n\n"
-        "<b>Команды:</b>\n"
-        "/newgame — начать новую игру (число из 4 цифр)\n"
-        "/help — показать справку\n"
-        "/cancel — прекратить текущую игру\n\n"
-        "Просто отправь мне число, чтобы сделать ход!"
-    )
+    user_id = user.id
+    
+    # Проверяем, есть ли активная игра
+    if user_id in user_games and not user_games[user_id].is_game_over:
+        # Если игра активна, показываем сообщение об этом с кнопками
+        keyboard = [
+            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+            [InlineKeyboardButton("❌ Завершить игру", callback_data="cancel")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_html(
+            f"Привет, {user.mention_html()}! 🎮\n\n"
+            f"У тебя уже есть активная игра!\n"
+            f"Загадано число из <b>{user_games[user_id].number_length}</b> цифр.\n"
+            f"Попыток сделано: {user_games[user_id].attempts}\n\n"
+            "Отправь число, чтобы сделать ход, или выбери действие:",
+            reply_markup=reply_markup
+        )
+    else:
+        # Если нет активной игры, предлагаем начать новую или посмотреть статистику
+        keyboard = [
+            [InlineKeyboardButton("🎮 Новая игра", callback_data="new_game")],
+            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_html(
+            f"Привет, {user.mention_html()}! 🎮\n\n"
+            "Я бот для игры <b>«Быки и Коровы»</b>!\n\n"
+            "<b>Правила игры:</b>\n"
+            "• Я загадываю число с уникальными цифрами\n"
+            "• Ты пытаешься его угадать\n"
+            "• После каждой попытки я говорю:\n"
+            "  🐂 <b>Быки</b> — цифры на правильных местах\n"
+            "  🐄 <b>Коровы</b> — правильные цифры не на своих местах\n\n"
+            "Выбери действие:",
+            reply_markup=reply_markup
+        )
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик нажатий на кнопки."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    await query.answer()  # Подтверждаем получение callback
+    
+    data = query.data
+    
+    if data == "new_game":
+        # Показываем кнопки для выбора количества цифр
+        keyboard = [
+            [InlineKeyboardButton("3 цифры", callback_data="length_3")],
+            [InlineKeyboardButton("4 цифры", callback_data="length_4")],
+            [InlineKeyboardButton("5 цифр", callback_data="length_5")],
+            [InlineKeyboardButton("6 цифр", callback_data="length_6")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎮 <b>Новая игра</b>\n\n"
+            "Выберите количество цифр в загадываемом числе:",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+    
+    elif data.startswith("length_"):
+        # Извлекаем длину числа
+        number_length = int(data.split("_")[1])
+        
+        # Генерируем секретное число
+        secret_number = generate_secret_number(number_length)
+        
+        # Создаём новое состояние игры
+        user_games[user_id] = GameState(secret_number, number_length)
+        
+        await query.edit_message_text(
+            f"🎮 <b>Новая игра началась!</b>\n\n"
+            f"Я загадал число из <b>{number_length}</b> цифр.\n"
+            f"Попробуй угадать его!\n\n"
+            "Отправь число в чат, чтобы сделать ход.",
+            parse_mode="HTML"
+        )
+        logger.info(f"User {user_id} started a new game with {number_length}-digit number via button")
+    
+    elif data == "stats":
+        # Показываем статистику
+        if user_id not in user_games:
+            await query.edit_message_text(
+                "У тебя нет активной игры.\n"
+                "Используй кнопку «Новая игра», чтобы начать."
+            )
+            return
+        
+        game = user_games[user_id]
+        
+        stats_text = (
+            f"📊 <b>Статистика игры</b>\n\n"
+            f"Длина числа: {game.number_length}\n"
+            f"Попыток: {game.attempts}\n\n"
+        )
+        
+        if game.history:
+            stats_text += "<b>История ходов:</b>\n"
+            for i, (guess, bulls, cows) in enumerate(game.history[-10:], 1):
+                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
+            
+            if len(game.history) > 10:
+                stats_text += f"... и ещё {len(game.history) - 10} ходов"
+        else:
+            stats_text += "Пока нет ходов. Сделай первый ход!"
+        
+        # Добавляем кнопки навигации
+        keyboard = []
+        if not game.is_game_over:
+            keyboard.append([InlineKeyboardButton("◀️ Назад к игре", callback_data="back_to_game")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+        
+        await query.edit_message_text(
+            stats_text,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+    
+    elif data == "cancel":
+        # Завершаем игру
+        if user_id in user_games:
+            del user_games[user_id]
+            await query.edit_message_text(
+                "❌ Игра завершена.\n"
+                "Используй кнопку «Новая игра», чтобы начать заново."
+            )
+            logger.info(f"User {user_id} cancelled the game via button")
+        else:
+            await query.edit_message_text(
+                "У тебя нет активной игры.\n"
+                "Используй кнопку «Новая игра», чтобы начать."
+            )
+    
+    elif data == "back_to_game":
+        # Возвращаемся к сообщению с информацией об игре
+        if user_id in user_games and not user_games[user_id].is_game_over:
+            game = user_games[user_id]
+            keyboard = [
+                [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+                [InlineKeyboardButton("❌ Завершить игру", callback_data="cancel")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"🎮 <b>Активная игра</b>\n\n"
+                f"Загадано число из <b>{game.number_length}</b> цифр.\n"
+                f"Попыток сделано: {game.attempts}\n\n"
+                "Отправь число в чат, чтобы сделать ход, или выбери действие:",
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        else:
+            await query.edit_message_text(
+                "У тебя нет активной игры.\n"
+                "Используй кнопку «Новая игра», чтобы начать."
+            )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -353,6 +502,9 @@ def main() -> None:
     application.add_handler(CommandHandler("newgame", new_game))
     application.add_handler(CommandHandler("cancel", cancel_game))
     application.add_handler(CommandHandler("stats", show_stats))
+
+    # Регистрируем обработчик callback-запросов (для кнопок)
+    application.add_handler(CallbackQueryHandler(button_callback))
 
     # Регистрируем обработчик текстовых сообщений (для попыток угадать)
     application.add_handler(
