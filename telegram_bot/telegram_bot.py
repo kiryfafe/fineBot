@@ -312,7 +312,6 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n\n"
-            f"Попытка #{game.attempts}: {guess}"
             f"{history_text}"
         )
 
