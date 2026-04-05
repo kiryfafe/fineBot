@@ -1536,7 +1536,7 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
-    application = Application.builder().token(token).build()
+    application = Application.builder().token(token).local_mode(False).build()
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start))
@@ -3039,7 +3039,7 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
-    application = Application.builder().token(token).build()
+    application = Application.builder().token(token).local_mode(False).build()
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start))
