@@ -1,1 +1,37 @@
-Nothing should be ignored based on the provided file changes. The only modified file is a Python source file (`telegram_bot/telegram_bot.py`), which should not be added to .gitignore.
+```python
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Virtual environments
+venv/
+.venv/
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
