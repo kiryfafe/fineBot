@@ -974,11 +974,12 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response = (
                 f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
                 f"Число соперника: <code>{secret}</code>\n"
+                f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
                 f"Количество попыток: <b>{mp_game.p1_attempts}</b>"
                 f"{history_text}"
             )
 
-            # Отправляем сообщение обоим игрокам
+            # Отправляем сообщение победителю с кнопками
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
@@ -986,7 +987,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await update.message.reply_text(response, parse_mode="HTML")
+            await update.message.reply_text(response, parse_mode="HTML", reply_markup=reply_markup)
 
             # Сообщаем проигравшему
             try:
@@ -1022,6 +1023,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n"
+            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1}</code>\n"
             f"{history_text}\n"
             "Ход передан сопернику. Ожидай его хода..."
         )
@@ -1034,6 +1036,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 chat_id=mp_game.player2_id,
                 text=(
                     f"🎲 <b>Твой ход!</b>\n\n"
+                    f"<b>Твоё число:</b> <code>{mp_game.secret_number_p2}</code>\n\n"
                     f"Соперник сделал попытку: <code>{guess}</code>\n"
                     f"Результат: 🐂{bulls} 🐄{cows}\n\n"
                     f"Отправь число из {mp_game.number_length} цифр, чтобы угадать число соперника."
@@ -1065,11 +1068,12 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response = (
                 f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
                 f"Число соперника: <code>{secret}</code>\n"
+                f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
                 f"Количество попыток: <b>{mp_game.p2_attempts}</b>"
                 f"{history_text}"
             )
 
-            # Отправляем сообщение обоим игрокам
+            # Отправляем сообщение победителю с кнопками
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
@@ -1077,7 +1081,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await update.message.reply_text(response, parse_mode="HTML")
+            await update.message.reply_text(response, parse_mode="HTML", reply_markup=reply_markup)
 
             # Сообщаем проигравшему
             try:
@@ -1113,6 +1117,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n"
+            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p2}</code>\n"
             f"{history_text}\n"
             "Ход передан сопернику. Ожидай его хода..."
         )
@@ -1125,6 +1130,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 chat_id=mp_game.player1_id,
                 text=(
                     f"🎲 <b>Твой ход!</b>\n\n"
+                    f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1}</code>\n\n"
                     f"Соперник сделал попытку: <code>{guess}</code>\n"
                     f"Результат: 🐂{bulls} 🐄{cows}\n\n"
                     f"Отправь число из {mp_game.number_length} цифр, чтобы угадать число соперника."
@@ -2544,11 +2550,12 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response = (
                 f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
                 f"Число соперника: <code>{secret}</code>\n"
+                f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
                 f"Количество попыток: <b>{mp_game.p1_attempts}</b>"
                 f"{history_text}"
             )
 
-            # Отправляем сообщение обоим игрокам
+            # Отправляем сообщение победителю с кнопками
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
@@ -2556,7 +2563,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await update.message.reply_text(response, parse_mode="HTML")
+            await update.message.reply_text(response, parse_mode="HTML", reply_markup=reply_markup)
 
             # Сообщаем проигравшему
             try:
@@ -2592,6 +2599,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n"
+            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1}</code>\n"
             f"{history_text}\n"
             "Ход передан сопернику. Ожидай его хода..."
         )
@@ -2604,6 +2612,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 chat_id=mp_game.player2_id,
                 text=(
                     f"🎲 <b>Твой ход!</b>\n\n"
+                    f"<b>Твоё число:</b> <code>{mp_game.secret_number_p2}</code>\n\n"
                     f"Соперник сделал попытку: <code>{guess}</code>\n"
                     f"Результат: 🐂{bulls} 🐄{cows}\n\n"
                     f"Отправь число из {mp_game.number_length} цифр, чтобы угадать число соперника."
@@ -2635,11 +2644,12 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response = (
                 f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
                 f"Число соперника: <code>{secret}</code>\n"
+                f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
                 f"Количество попыток: <b>{mp_game.p2_attempts}</b>"
                 f"{history_text}"
             )
 
-            # Отправляем сообщение обоим игрокам
+            # Отправляем сообщение победителю с кнопками
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
@@ -2647,7 +2657,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await update.message.reply_text(response, parse_mode="HTML")
+            await update.message.reply_text(response, parse_mode="HTML", reply_markup=reply_markup)
 
             # Сообщаем проигравшему
             try:
@@ -2683,6 +2693,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         response = (
             f"🐂 <b>{bulls}</b> бык(а/ов) | 🐄 <b>{cows}</b> коров(а/ы)\n"
+            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p2}</code>\n"
             f"{history_text}\n"
             "Ход передан сопернику. Ожидай его хода..."
         )
@@ -2695,6 +2706,7 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 chat_id=mp_game.player1_id,
                 text=(
                     f"🎲 <b>Твой ход!</b>\n\n"
+                    f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1}</code>\n\n"
                     f"Соперник сделал попытку: <code>{guess}</code>\n"
                     f"Результат: 🐂{bulls} 🐄{cows}\n\n"
                     f"Отправь число из {mp_game.number_length} цифр, чтобы угадать число соперника."
