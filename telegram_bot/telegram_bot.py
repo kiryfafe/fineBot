@@ -214,7 +214,7 @@ def show_main_menu(update_or_query, context, is_callback=False):
     if is_callback:
         update_or_query.edit_message_text(text, parse_mode="HTML", reply_markup=reply_markup)
     else:
-        update_or_query.message.reply_html(text, reply_markup=reply_markup)
+        await update_or_query.message.reply_html(text, reply_markup=reply_markup)
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -374,7 +374,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/stats - Показать вашу статистику игр\n"
         "/cancel - Завершить текущую игру и вернуться в меню\n"
         "/restart - Перезагрузить бота (доступно только администратору)\n"
-        "/help - Показать эту справку",
+        "/help - Показать эту справку\n\n"
+        "<b>Сделано Кириллом Г 🐱</b>",
         parse_mode="HTML",
     )
 
