@@ -1134,88 +1134,6 @@ async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Failed to notify player1: {e}")
 
 
-async def handle_room_id_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик ввода ID комнаты для присоединения."""
-    user_id = update.effective_user.id
-    
-    # Проверяем, ждёт ли пользователь ввода ID комнаты
-    if not context.user_data.get('waiting_for_room_id'):
-        return
-    
-    room_id = update.message.text.strip()
-    
-    # Проверяем существование комнаты
-    if room_id not in mp_waiting_rooms or not mp_waiting_rooms[room_id]['waiting']:
-        await update.message.reply_text(
-            "❌ Комната с таким ID не найдена или игра уже началась.\n"
-            "Проверь ID и попробуй снова."
-        )
-        context.user_data['waiting_for_room_id'] = False
-        return
-    
-    room = mp_waiting_rooms[room_id]
-    creator_id = room['creator']
-    
-    # Проверяем, не является ли пользователь создателем
-    if user_id == creator_id:
-        await update.message.reply_text("❌ Ты не можешь присоединиться к своей собственной комнате!")
-        context.user_data['waiting_for_room_id'] = False
-        return
-    
-    # Присоединяемся к комнате
-    number_length = room['length']
-    
-    # Создаём полноценную игру
-    mp_game = MultiplayerGame(creator_id, user_id, number_length)
-    mp_game.secret_number_p2 = generate_secret_number(number_length)
-    mp_game.p2_ready = True
-    
-    multiplayer_games[room_id] = mp_game
-    user_to_mp_game[creator_id] = room_id
-    user_to_mp_game[user_id] = room_id
-    mp_waiting_rooms[room_id]['waiting'] = False
-    mp_waiting_rooms[room_id]['player2'] = user_id
-    
-    context.user_data['waiting_for_room_id'] = False
-    
-    # Сообщаем обоим игрокам о начале игры
-    keyboard = [
-        [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-        [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # Отправляем сообщение создателю
-    try:
-        await context.bot.send_message(
-            chat_id=creator_id,
-            text=(
-                f"🎲 <b>Игра началась!</b>\n\n"
-                f"Твой соперник присоединился!\n"
-                f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
-                f"<b>Число соперника:</b> ???\n\n"
-                f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
-            ),
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-    except Exception as e:
-        logger.error(f"Failed to send message to creator {creator_id}: {e}")
-    
-    # Отправляем сообщение второму игроку
-    await update.message.reply_text(
-        f"🎲 <b>Игра началась!</b>\n\n"
-        f"Ты присоединился к игре!\n"
-        f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
-        f"<b>Число соперника:</b> ???\n\n"
-        f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
-    
-    logger.info(f"User {user_id} joined room {room_id} via text input, game started")
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Универсальный обработчик текстовых сообщений."""
     user_id = update.effective_user.id
@@ -1223,7 +1141,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Сначала проверяем, не вводит ли пользователь ID комнаты для мультиплеера
     if context.user_data.get('waiting_for_room_id'):
-        await handle_room_id_input(update, context)
+        # Теперь ID комнаты вводится только через callback, текстовый ввод отключаем
+        await update.message.reply_text(
+            "❌ Для присоединения к игре используй кнопку «Найти игру» в меню мультиплеера.\n"
+            "Текстовый ввод ID больше не поддерживается."
+        )
+        context.user_data['waiting_for_room_id'] = False
         return
     
     # Проверяем, не вводит ли игрок своё число для мультиплеерной игры
