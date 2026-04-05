@@ -1537,10 +1537,10 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
-    application = Application.builder()
-        .token(token)
-        .local_mode(False)
-        .defaults(Defaults(parse_mode='HTML', disable_web_page_preview=True))
+    application = Application.builder() \
+        .token(token) \
+        .local_mode(False) \
+        .defaults(Defaults(parse_mode='HTML', disable_web_page_preview=True)) \
         .build()
 
     # Регистрируем обработчики команд
@@ -1572,7 +1572,6 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-+++ telegram_bot/telegram_bot.py (修改后)
 """
 Telegram Bot для игры "Быки и Коровы"
 
@@ -3041,7 +3040,11 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
-    application = Application.builder().token(token).local_mode(False).build()
+    application = Application.builder() \
+        .token(token) \
+        .local_mode(False) \
+        .defaults(Defaults(parse_mode='HTML', disable_web_page_preview=True)) \
+        .build()
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start))
