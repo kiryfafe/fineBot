@@ -188,10 +188,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         else:
             # Игра завершена или не найдена, показываем главное меню
-            show_main_menu(update, context)
+            await show_main_menu(update, context)
     else:
         # Если нет активной игры, показываем главное меню
-        show_main_menu(update, context)
+        await show_main_menu(update, context)
 
 
 async def show_main_menu(update_or_query, context, is_callback=False):
