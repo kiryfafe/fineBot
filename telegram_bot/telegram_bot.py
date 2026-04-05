@@ -1,4 +1,3 @@
---- telegram_bot/telegram_bot.py (原始)
 """
 Telegram Bot для игры "Быки и Коровы"
 
