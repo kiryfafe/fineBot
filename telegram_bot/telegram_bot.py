@@ -56,9 +56,9 @@ class MultiplayerGame:
         self.player1_id = player1_id
         self.player2_id = player2_id
         self.number_length = number_length
-        # Каждый игрок загадывает своё число
-        self.secret_number_p1 = generate_secret_number(number_length)
-        self.secret_number_p2 = generate_secret_number(number_length)
+        # Числа игроков (изначально None, пока игроки не загадают)
+        self.secret_number_p1 = None
+        self.secret_number_p2 = None
         # Состояния для каждого игрока
         self.p1_attempts = 0
         self.p2_attempts = 0
@@ -67,10 +67,12 @@ class MultiplayerGame:
         self.is_game_over = False
         self.winner = None  # 'player1', 'player2', 'draw'
         # Чей сейчас ход
-        self.current_turn = player1_id  # Начинает первый игрок
+        self.current_turn = None  # Будет установлен после того как оба загадают числа
         # Флаги готовности (кто уже загадал число)
-        self.p1_ready = True
-        self.p2_ready = True
+        self.p1_ready = False  # Игрок 1 ещё не загадал число
+        self.p2_ready = False  # Игрок 2 ещё не загадал число
+        # Флаг начала игры (оба загадали числа)
+        self.game_started = False
 
 
 def generate_secret_number(length: int = 4) -> str:
@@ -410,7 +412,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     elif data.startswith("mp_create_"):
-        # Создаём новую комнату
+        # Создаём новую комнату - игрок должен будет загадать число
         number_length = int(data.split("_")[2])
         game_id = f"mp_{user_id}_{random.randint(1000, 9999)}"
         
@@ -422,18 +424,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             'player2': None
         }
         
-        # Генерируем секретное число для создателя
-        secret_creator = generate_secret_number(number_length)
-        
-        # Создаём объект игры (пока без второго игрока)
+        # Создаём объект игры (пока без второго игрока и без загаданного числа)
         mp_game = MultiplayerGame(user_id, 0, number_length)
-        mp_game.secret_number_p1 = secret_creator
         mp_game.p2_ready = False  # Второй игрок ещё не присоединился
         
         multiplayer_games[game_id] = mp_game
         user_to_mp_game[user_id] = game_id
         
-        # Отправляем сообщение с ID комнаты
+        # Отправляем сообщение с ID комнаты и просим загадать число
         keyboard = [
             [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel_create")],
         ]
@@ -444,11 +442,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
             f"<b>Длина числа:</b> {number_length}\n\n"
             "Отправь этот ID другу, чтобы он мог присоединиться.\n"
-            "Как только друг подключится, игра начнётся автоматически.",
+            "<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+            "Как только друг подключится и оба загадаете числа, игра начнётся автоматически.",
             parse_mode="HTML",
             reply_markup=reply_markup
         )
-        logger.info(f"User {user_id} created multiplayer room {game_id}")
+        # Устанавливаем флаг ожидания загаданного числа от создателя
+        context.user_data['waiting_for_mp_number'] = {'game_id': game_id, 'is_creator': True}
+        logger.info(f"User {user_id} created multiplayer room {game_id}, waiting for number")
         return
     
     elif data == "mp_cancel_create":
@@ -498,7 +499,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     elif data.startswith("mp_join_room_"):
-        # Присоединение к конкретной комнате
+        # Присоединение к конкретной комнате - игрок должен будет загадать число
         game_id = data.replace("mp_join_room_", "")
         
         if game_id not in mp_waiting_rooms or not mp_waiting_rooms[game_id]['waiting']:
@@ -514,60 +515,51 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.answer("❌ Ты не можешь присоединиться к своей собственной комнате!", show_alert=True)
             return
         
-        # Создаём полноценную игру
-        mp_game = MultiplayerGame(creator_id, user_id, number_length)
-        # Секретное число первого игрока уже сгенерировано
-        mp_game.secret_number_p2 = generate_secret_number(number_length)
-        mp_game.p2_ready = True
+        # Обновляем комнату - добавляем второго игрока
+        mp_game = multiplayer_games.get(game_id)
+        if not mp_game:
+            # Создаём объект игры если ещё не создан
+            mp_game = MultiplayerGame(creator_id, user_id, number_length)
+            multiplayer_games[game_id] = mp_game
         
-        multiplayer_games[game_id] = mp_game
-        user_to_mp_game[creator_id] = game_id
-        user_to_mp_game[user_id] = game_id
+        mp_game.player2_id = user_id
         mp_waiting_rooms[game_id]['waiting'] = False
         mp_waiting_rooms[game_id]['player2'] = user_id
+        user_to_mp_game[user_id] = game_id
         
-        # Сообщаем обоим игрокам о начале игры
-        keyboard1 = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+        # Отправляем сообщение второму игроку с просьбой загадать число
+        keyboard2 = [
+            [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel")],
         ]
-        reply_markup1 = InlineKeyboardMarkup(keyboard1)
+        reply_markup2 = InlineKeyboardMarkup(keyboard2)
         
-        # Отправляем сообщение создателю
+        await query.edit_message_text(
+            f"🎲 <b>Ты присоединился к игре!</b>\n\n"
+            f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
+            f"<b>Длина числа:</b> {number_length}\n\n"
+            f"<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+            f"Как только оба игрока загадают числа, игра начнётся автоматически.",
+            parse_mode="HTML",
+            reply_markup=reply_markup2
+        )
+        # Устанавливаем флаг ожидания загаданного числа от второго игрока
+        context.user_data['waiting_for_mp_number'] = {'game_id': game_id, 'is_creator': False}
+        
+        # Уведомляем создателя что игрок присоединился
         try:
             await context.bot.send_message(
                 chat_id=creator_id,
                 text=(
-                    f"🎲 <b>Игра началась!</b>\n\n"
-                    f"Твой соперник присоединился!\n"
-                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
-                    f"<b>Число соперника:</b> ???\n\n"
-                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                    f"🎲 <b>Соперник присоединился!</b>\n\n"
+                    f"Игрок готов к игре. Как только вы оба загадаете числа, игра начнётся.\n"
+                    f"Если ты ещё не загадал число - отправь его в чат."
                 ),
-                parse_mode="HTML",
-                reply_markup=reply_markup1
+                parse_mode="HTML"
             )
         except Exception as e:
-            logger.error(f"Failed to send message to creator {creator_id}: {e}")
+            logger.error(f"Failed to notify creator {creator_id}: {e}")
         
-        keyboard2 = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
-        ]
-        reply_markup2 = InlineKeyboardMarkup(keyboard2)
-        
-        # Отправляем сообщение второму игроку
-        await query.edit_message_text(
-            f"🎲 <b>Игра началась!</b>\n\n"
-            f"Ты присоединился к игре!\n"
-            f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
-            f"<b>Число соперника:</b> ???\n\n"
-            f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
-            parse_mode="HTML",
-            reply_markup=reply_markup2
-        )
-        
-        logger.info(f"User {user_id} joined room {game_id}, game started")
+        logger.info(f"User {user_id} joined room {game_id}, waiting for numbers")
         return
     
     elif data == "mp_stats":
@@ -1233,6 +1225,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await handle_room_id_input(update, context)
         return
     
+    # Проверяем, не вводит ли игрок своё число для мультиплеерной игры
+    if context.user_data.get('waiting_for_mp_number'):
+        await handle_mp_number_input(update, context)
+        return
+    
     # Затем проверяем мультиплеерную игру
     if user_id in user_to_mp_game:
         await handle_mp_guess(update, context)
@@ -1240,6 +1237,172 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Наконец, проверяем одиночную игру
     await handle_guess(update, context)
+
+
+async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик ввода загаданного числа для мультиплеерной игры."""
+    user_id = update.effective_user.id
+    guess = update.message.text.strip()
+    
+    mp_data = context.user_data.get('waiting_for_mp_number')
+    if not mp_data:
+        return
+    
+    game_id = mp_data['game_id']
+    is_creator = mp_data['is_creator']
+    
+    mp_game = multiplayer_games.get(game_id)
+    if not mp_game:
+        await update.message.reply_text("❌ Игра не найдена. Попробуй создать комнату заново.")
+        del context.user_data['waiting_for_mp_number']
+        return
+    
+    number_length = mp_game.number_length
+    
+    # Валидация ввода
+    if not guess.isdigit():
+        await update.message.reply_text(
+            "❌ Пожалуйста, отправь только цифры (без пробелов и других символов)."
+        )
+        return
+    
+    if len(guess) != number_length:
+        await update.message.reply_text(
+            f"❌ Число должно содержать ровно {number_length} цифр."
+        )
+        return
+    
+    if len(set(guess)) != len(guess):
+        await update.message.reply_text(
+            "❌ Цифры в числе не должны повторяться."
+        )
+        return
+    
+    # Сохраняем загаданное число
+    if is_creator:
+        mp_game.secret_number_p1 = guess
+        mp_game.p1_ready = True
+        other_ready = mp_game.p2_ready
+        other_id = mp_game.player2_id
+    else:
+        mp_game.secret_number_p2 = guess
+        mp_game.p2_ready = True
+        other_ready = mp_game.p1_ready
+        other_id = mp_game.player1_id
+    
+    # Удаляем флаг ожидания
+    del context.user_data['waiting_for_mp_number']
+    
+    # Проверяем, готовы ли оба игрока
+    if mp_game.p1_ready and mp_game.p2_ready and not mp_game.game_started:
+        # Оба игрока загадали числа - начинаем игру
+        mp_game.game_started = True
+        mp_game.current_turn = mp_game.player1_id  # Начинает создатель
+        
+        # Отправляем сообщения обоим игрокам
+        keyboard = [
+            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
+            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Сообщение создателю (игрок 1)
+        try:
+            await context.bot.send_message(
+                chat_id=mp_game.player1_id,
+                text=(
+                    f"🎲 <b>Игра началась!</b>\n\n"
+                    f"Твой соперник присоединился!\n"
+                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
+                    f"<b>Число соперника:</b> ???\n\n"
+                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                ),
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Failed to send start message to player1: {e}")
+        
+        # Сообщение второму игроку
+        try:
+            await context.bot.send_message(
+                chat_id=mp_game.player2_id,
+                text=(
+                    f"🎲 <b>Игра началась!</b>\n\n"
+                    f"Ты присоединился к игре!\n"
+                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
+                    f"<b>Число соперника:</b> ???\n\n"
+                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
+                ),
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Failed to send start message to player2: {e}")
+        
+        logger.info(f"Multiplayer game {game_id} started, both players ready")
+        
+    elif other_ready:
+        # Другой игрок уже готов, ждём этого
+        await update.message.reply_text(
+            f"✅ <b>Число принято!</b>\n\n"
+            f"Твоё число: <code>{guess}</code>\n"
+            f"Соперник тоже уже загадал число.\n"
+            f"Как только игра начнётся, ты получишь уведомление.",
+            parse_mode="HTML"
+        )
+        
+        # Если это второй игрок присоединился и оба готовы, но игра ещё не стартовала
+        if not mp_game.game_started and is_creator == False:
+            mp_game.game_started = True
+            mp_game.current_turn = mp_game.player1_id
+            
+            keyboard = [
+                [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
+                [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            try:
+                await context.bot.send_message(
+                    chat_id=mp_game.player1_id,
+                    text=(
+                        f"🎲 <b>Игра началась!</b>\n\n"
+                        f"Твой соперник присоединился!\n"
+                        f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
+                        f"<b>Число соперника:</b> ???\n\n"
+                        f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                    ),
+                    parse_mode="HTML",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Failed to send start message to player1: {e}")
+            
+            await context.bot.send_message(
+                chat_id=mp_game.player2_id,
+                text=(
+                    f"🎲 <b>Игра началась!</b>\n\n"
+                    f"Ты присоединился к игре!\n"
+                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
+                    f"<b>Число соперника:</b> ???\n\n"
+                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
+                ),
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            
+            logger.info(f"Multiplayer game {game_id} started immediately")
+    else:
+        # Ждём второго игрока
+        await update.message.reply_text(
+            f"✅ <b>Число принято!</b>\n\n"
+            f"Твоё число: <code>{guess}</code>\n"
+            f"Ожидаем, пока соперник загадает своё число...\n"
+            f"Как только оба будете готовы, игра начнётся автоматически.",
+            parse_mode="HTML"
+        )
+        logger.info(f"Player {user_id} set number in game {game_id}, waiting for opponent")
 
 
 async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
