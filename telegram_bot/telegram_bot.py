@@ -28,6 +28,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters,
+    Defaults,
 )
 
 # Настройка логирования
@@ -1536,7 +1537,11 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
-    application = Application.builder().token(token).local_mode(False).build()
+    application = Application.builder()
+        .token(token)
+        .local_mode(False)
+        .defaults(Defaults(parse_mode='HTML', disable_web_page_preview=True))
+        .build()
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start))
@@ -1598,13 +1603,10 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters,
+    Defaults,
 )
 
 # Настройка логирования
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
 logger = logging.getLogger(__name__)
 
 
