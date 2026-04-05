@@ -194,7 +194,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         show_main_menu(update, context)
 
 
-def show_main_menu(update_or_query, context, is_callback=False):
+async def show_main_menu(update_or_query, context, is_callback=False):
     """Показывает главное меню с выбором режима игры."""
     keyboard = [
         [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
@@ -212,7 +212,7 @@ def show_main_menu(update_or_query, context, is_callback=False):
     )
     
     if is_callback:
-        update_or_query.edit_message_text(text, parse_mode="HTML", reply_markup=reply_markup)
+        await update_or_query.edit_message_text(text, parse_mode="HTML", reply_markup=reply_markup)
     else:
         await update_or_query.message.reply_html(text, reply_markup=reply_markup)
 
