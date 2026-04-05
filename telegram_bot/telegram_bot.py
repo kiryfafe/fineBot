@@ -350,7 +350,354 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=reply_markup
             )
         else:
-            show_main_menu(query, context, is_callback=True)
+            await show_main_menu(query, context, is_callback=True)
+    
+    # Обработчик мультиплеерных callback-кнопок
+    elif data == "main_menu":
+        # Возврат в главное меню
+        keyboard = [
+            [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
+            [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
+            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎮 <b>Главное меню</b>\n\n"
+            "Выберите режим игры:",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif data == "mp_menu":
+        # Меню мультиплеера
+        keyboard = [
+            [InlineKeyboardButton("🎮 Создать комнату", callback_data="mp_create")],
+            [InlineKeyboardButton("🔍 Найти игру", callback_data="mp_join")],
+            [InlineKeyboardButton("◀️ Назад", callback_data="main_menu")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎲 <b>Мультиплеер</b>\n\n"
+            "Выберите действие:\n"
+            "• <b>Создать комнату</b> - создайте игру и отправьте ссылку другу\n"
+            "• <b>Найти игру</b> - присоединитесь к существующей комнате по ID\n"
+            "• <b>Назад</b> - вернуться в главное меню",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif data == "mp_create":
+        # Создание комнаты - выбор длины числа
+        keyboard = [
+            [InlineKeyboardButton("3 цифры", callback_data="mp_create_3")],
+            [InlineKeyboardButton("4 цифры", callback_data="mp_create_4")],
+            [InlineKeyboardButton("5 цифр", callback_data="mp_create_5")],
+            [InlineKeyboardButton("6 цифр", callback_data="mp_create_6")],
+            [InlineKeyboardButton("◀️ Назад", callback_data="mp_menu")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎲 <b>Создание комнаты</b>\n\n"
+            "Выберите количество цифр в числе:",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif data.startswith("mp_create_"):
+        # Создаём новую комнату
+        number_length = int(data.split("_")[2])
+        game_id = f"mp_{user_id}_{random.randint(1000, 9999)}"
+        
+        # Сохраняем информацию о комнате
+        mp_waiting_rooms[game_id] = {
+            'creator': user_id,
+            'length': number_length,
+            'waiting': True,
+            'player2': None
+        }
+        
+        # Генерируем секретное число для создателя
+        secret_creator = generate_secret_number(number_length)
+        
+        # Создаём объект игры (пока без второго игрока)
+        mp_game = MultiplayerGame(user_id, 0, number_length)
+        mp_game.secret_number_p1 = secret_creator
+        mp_game.p2_ready = False  # Второй игрок ещё не присоединился
+        
+        multiplayer_games[game_id] = mp_game
+        user_to_mp_game[user_id] = game_id
+        
+        # Отправляем сообщение с ID комнаты
+        keyboard = [
+            [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel_create")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"🎲 <b>Комната создана!</b>\n\n"
+            f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
+            f"<b>Длина числа:</b> {number_length}\n\n"
+            "Отправь этот ID другу, чтобы он мог присоединиться.\n"
+            "Как только друг подключится, игра начнётся автоматически.",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        logger.info(f"User {user_id} created multiplayer room {game_id}")
+        return
+    
+    elif data == "mp_cancel_create":
+        # Отмена создания комнаты
+        # Ищем комнату пользователя и удаляем её
+        rooms_to_delete = []
+        for gid, room in mp_waiting_rooms.items():
+            if room['creator'] == user_id and room['waiting']:
+                rooms_to_delete.append(gid)
+        
+        for gid in rooms_to_delete:
+            if gid in multiplayer_games:
+                del multiplayer_games[gid]
+            if gid in mp_waiting_rooms:
+                del mp_waiting_rooms[gid]
+            if user_id in user_to_mp_game:
+                del user_to_mp_game[user_id]
+        
+        # Возвращаемся в меню мультиплеера
+        keyboard = [
+            [InlineKeyboardButton("🎮 Создать комнату", callback_data="mp_create")],
+            [InlineKeyboardButton("🔍 Найти игру", callback_data="mp_join")],
+            [InlineKeyboardButton("◀️ Назад", callback_data="main_menu")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎲 <b>Мультиплеер</b>\n\n"
+            "Выберите действие:",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif data == "mp_join":
+        # Запрос ID комнаты для присоединения
+        await query.edit_message_text(
+            "🎲 <b>Присоединение к игре</b>\n\n"
+            "Отправь мне ID комнаты, который тебе дал друг.\n"
+            "ID выглядит как: <code>mp_123456_7890</code>\n\n"
+            "Или нажми «Назад», чтобы отменить.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="mp_menu")]])
+        )
+        # Устанавливаем флаг, что пользователь хочет присоединиться
+        context.user_data['waiting_for_room_id'] = True
+        return
+    
+    elif data.startswith("mp_join_room_"):
+        # Присоединение к конкретной комнате
+        game_id = data.replace("mp_join_room_", "")
+        
+        if game_id not in mp_waiting_rooms or not mp_waiting_rooms[game_id]['waiting']:
+            await query.edit_message_text("❌ Эта комната больше не существует или игра уже началась.")
+            return
+        
+        room = mp_waiting_rooms[game_id]
+        creator_id = room['creator']
+        number_length = room['length']
+        
+        # Проверяем, не является ли пользователь уже частью этой игры
+        if user_id == creator_id:
+            await query.answer("❌ Ты не можешь присоединиться к своей собственной комнате!", show_alert=True)
+            return
+        
+        # Создаём полноценную игру
+        mp_game = MultiplayerGame(creator_id, user_id, number_length)
+        # Секретное число первого игрока уже сгенерировано
+        mp_game.secret_number_p2 = generate_secret_number(number_length)
+        mp_game.p2_ready = True
+        
+        multiplayer_games[game_id] = mp_game
+        user_to_mp_game[creator_id] = game_id
+        user_to_mp_game[user_id] = game_id
+        mp_waiting_rooms[game_id]['waiting'] = False
+        mp_waiting_rooms[game_id]['player2'] = user_id
+        
+        # Сообщаем обоим игрокам о начале игры
+        keyboard1 = [
+            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
+            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+        ]
+        reply_markup1 = InlineKeyboardMarkup(keyboard1)
+        
+        # Отправляем сообщение создателю
+        try:
+            await context.bot.send_message(
+                chat_id=creator_id,
+                text=(
+                    f"🎲 <b>Игра началась!</b>\n\n"
+                    f"Твой соперник присоединился!\n"
+                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
+                    f"<b>Число соперника:</b> ???\n\n"
+                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                ),
+                parse_mode="HTML",
+                reply_markup=reply_markup1
+            )
+        except Exception as e:
+            logger.error(f"Failed to send message to creator {creator_id}: {e}")
+        
+        keyboard2 = [
+            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
+            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+        ]
+        reply_markup2 = InlineKeyboardMarkup(keyboard2)
+        
+        # Отправляем сообщение второму игроку
+        await query.edit_message_text(
+            f"🎲 <b>Игра началась!</b>\n\n"
+            f"Ты присоединился к игре!\n"
+            f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
+            f"<b>Число соперника:</b> ???\n\n"
+            f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
+            parse_mode="HTML",
+            reply_markup=reply_markup2
+        )
+        
+        logger.info(f"User {user_id} joined room {game_id}, game started")
+        return
+    
+    elif data == "mp_stats":
+        # Статистика мультиплеерной игры
+        if user_id not in user_to_mp_game:
+            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
+            return
+        
+        game_id = user_to_mp_game[user_id]
+        mp_game = multiplayer_games.get(game_id)
+        if not mp_game:
+            await query.edit_message_text("❌ Игра не найдена.")
+            return
+        
+        is_player1 = (user_id == mp_game.player1_id)
+        if is_player1:
+            my_attempts = mp_game.p1_attempts
+            my_history = mp_game.p1_history
+            opponent_attempts = mp_game.p2_attempts
+        else:
+            my_attempts = mp_game.p2_attempts
+            my_history = mp_game.p2_history
+            opponent_attempts = mp_game.p1_attempts
+        
+        stats_text = (
+            f"📊 <b>Статистика мультиплеерной игры</b>\n\n"
+            f"Длина числа: {mp_game.number_length}\n"
+            f"Твоих попыток: {my_attempts}\n"
+            f"Попыток соперника: {opponent_attempts}\n\n"
+        )
+        
+        if my_history:
+            stats_text += "<b>Твои попытки:</b>\n"
+            for i, (guess, bulls, cows) in enumerate(my_history[-10:], 1):
+                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
+        else:
+            stats_text += "Пока нет ходов."
+        
+        keyboard = [
+            [InlineKeyboardButton("◀️ Назад к игре", callback_data="mp_back_to_game")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(stats_text, parse_mode="HTML", reply_markup=reply_markup)
+        return
+    
+    elif data == "mp_back_to_game":
+        # Возврат к информации об игре
+        if user_id not in user_to_mp_game:
+            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
+            return
+        
+        game_id = user_to_mp_game[user_id]
+        mp_game = multiplayer_games.get(game_id)
+        if not mp_game:
+            await query.edit_message_text("❌ Игра не найдена.")
+            return
+        
+        is_player1 = (user_id == mp_game.player1_id)
+        current_turn_text = "Твой ход!" if mp_game.current_turn == user_id else "Ход соперника."
+        
+        keyboard = [
+            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
+            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"🎲 <b>Активная игра</b>\n\n"
+            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1 if is_player1 else mp_game.secret_number_p2}</code>\n"
+            f"<b>Попыток сделано:</b> {mp_game.p1_attempts if is_player1 else mp_game.p2_attempts}\n"
+            f"<b>{current_turn_text}</b>\n\n"
+            "Отправь число, чтобы сделать ход.",
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+        return
+    
+    elif data == "mp_cancel":
+        # Завершение мультиплеерной игры
+        if user_id not in user_to_mp_game:
+            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
+            return
+        
+        game_id = user_to_mp_game[user_id]
+        mp_game = multiplayer_games.get(game_id)
+        if not mp_game:
+            await query.edit_message_text("❌ Игра не найдена.")
+            return
+        
+        # Удаляем игру
+        player1_id = mp_game.player1_id
+        player2_id = mp_game.player2_id
+        
+        if game_id in multiplayer_games:
+            del multiplayer_games[game_id]
+        if user_id in user_to_mp_game:
+            del user_to_mp_game[user_id]
+        if player1_id in user_to_mp_game:
+            del user_to_mp_game[player1_id]
+        if player2_id in user_to_mp_game:
+            del user_to_mp_game[player2_id]
+        
+        # Показываем меню выбора режима игры
+        keyboard = [
+            [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
+            [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
+            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "❌ Игра завершена.\n\nВыберите режим игры:",
+            reply_markup=reply_markup
+        )
+        
+        # Уведомляем второго игрока (если это был один из игроков)
+        other_player = player2_id if user_id == player1_id else player1_id
+        if other_player:
+            try:
+                await context.bot.send_message(
+                    chat_id=other_player,
+                    text="❌ Соперник завершил игру.\n\nВыберите режим игры:",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Failed to notify other player {other_player}: {e}")
+        
+        logger.info(f"User {user_id} cancelled multiplayer game {game_id}")
+        return
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -565,362 +912,6 @@ async def multiplayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 # Глобальный словарь для ожидания игроков (для упрощённой реализации)
 # Ключ: game_id, Значение: {'creator': user_id, 'length': int, 'waiting': bool}
 mp_waiting_rooms: Dict[str, dict] = {}
-
-
-async def mp_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик callback-кнопок для мультиплеера."""
-    query = update.callback_query
-    user_id = query.from_user.id
-    
-    await query.answer()
-    
-    data = query.data
-    
-    if data == "main_menu":
-        # Возврат в главное меню
-        keyboard = [
-            [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
-            [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🎮 <b>Главное меню</b>\n\n"
-            "Выберите режим игры:",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if data == "mp_menu":
-        # Меню мультиплеера
-        keyboard = [
-            [InlineKeyboardButton("🎮 Создать комнату", callback_data="mp_create")],
-            [InlineKeyboardButton("🔍 Найти игру", callback_data="mp_join")],
-            [InlineKeyboardButton("◀️ Назад", callback_data="main_menu")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🎲 <b>Мультиплеер</b>\n\n"
-            "Выберите действие:\n"
-            "• <b>Создать комнату</b> - создайте игру и отправьте ссылку другу\n"
-            "• <b>Найти игру</b> - присоединитесь к существующей комнате по ID\n"
-            "• <b>Назад</b> - вернуться в главное меню",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if data == "mp_create":
-        # Создание комнаты - выбор длины числа
-        keyboard = [
-            [InlineKeyboardButton("3 цифры", callback_data="mp_create_3")],
-            [InlineKeyboardButton("4 цифры", callback_data="mp_create_4")],
-            [InlineKeyboardButton("5 цифр", callback_data="mp_create_5")],
-            [InlineKeyboardButton("6 цифр", callback_data="mp_create_6")],
-            [InlineKeyboardButton("◀️ Назад", callback_data="mp_menu")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🎲 <b>Создание комнаты</b>\n\n"
-            "Выберите количество цифр в числе:",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if data.startswith("mp_create_"):
-        # Создаём новую комнату
-        number_length = int(data.split("_")[2])
-        game_id = f"mp_{user_id}_{random.randint(1000, 9999)}"
-        
-        # Сохраняем информацию о комнате
-        mp_waiting_rooms[game_id] = {
-            'creator': user_id,
-            'length': number_length,
-            'waiting': True,
-            'player2': None
-        }
-        
-        # Генерируем секретное число для создателя
-        secret_creator = generate_secret_number(number_length)
-        
-        # Создаём объект игры (пока без второго игрока)
-        mp_game = MultiplayerGame(user_id, 0, number_length)
-        mp_game.secret_number_p1 = secret_creator
-        mp_game.p2_ready = False  # Второй игрок ещё не присоединился
-        
-        multiplayer_games[game_id] = mp_game
-        user_to_mp_game[user_id] = game_id
-        
-        # Отправляем сообщение с ID комнаты
-        keyboard = [
-            [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel_create")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            f"🎲 <b>Комната создана!</b>\n\n"
-            f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
-            f"<b>Длина числа:</b> {number_length}\n\n"
-            "Отправь этот ID другу, чтобы он мог присоединиться.\n"
-            "Как только друг подключится, игра начнётся автоматически.",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        logger.info(f"User {user_id} created multiplayer room {game_id}")
-        return
-    
-    if data == "mp_cancel_create":
-        # Отмена создания комнаты
-        # Ищем комнату пользователя и удаляем её
-        rooms_to_delete = []
-        for gid, room in mp_waiting_rooms.items():
-            if room['creator'] == user_id and room['waiting']:
-                rooms_to_delete.append(gid)
-        
-        for gid in rooms_to_delete:
-            if gid in multiplayer_games:
-                del multiplayer_games[gid]
-            if gid in mp_waiting_rooms:
-                del mp_waiting_rooms[gid]
-            if user_id in user_to_mp_game:
-                del user_to_mp_game[user_id]
-        
-        # Возвращаемся в меню мультиплеера
-        keyboard = [
-            [InlineKeyboardButton("🎮 Создать комнату", callback_data="mp_create")],
-            [InlineKeyboardButton("🔍 Найти игру", callback_data="mp_join")],
-            [InlineKeyboardButton("◀️ Назад", callback_data="main_menu")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🎲 <b>Мультиплеер</b>\n\n"
-            "Выберите действие:",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if data == "mp_join":
-        # Запрос ID комнаты для присоединения
-        await query.edit_message_text(
-            "🎲 <b>Присоединение к игре</b>\n\n"
-            "Отправь мне ID комнаты, который тебе дал друг.\n"
-            "ID выглядит как: <code>mp_123456_7890</code>\n\n"
-            "Или нажми «Назад», чтобы отменить.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="mp_menu")]])
-        )
-        # Устанавливаем флаг, что пользователь хочет присоединиться
-        context.user_data['waiting_for_room_id'] = True
-        return
-    
-    if data.startswith("mp_join_room_"):
-        # Присоединение к конкретной комнате
-        game_id = data.replace("mp_join_room_", "")
-        
-        if game_id not in mp_waiting_rooms or not mp_waiting_rooms[game_id]['waiting']:
-            await query.edit_message_text("❌ Эта комната больше не существует или игра уже началась.")
-            return
-        
-        room = mp_waiting_rooms[game_id]
-        creator_id = room['creator']
-        number_length = room['length']
-        
-        # Проверяем, не является ли пользователь уже частью этой игры
-        if user_id == creator_id:
-            await query.answer("❌ Ты не можешь присоединиться к своей собственной комнате!", show_alert=True)
-            return
-        
-        # Создаём полноценную игру
-        mp_game = MultiplayerGame(creator_id, user_id, number_length)
-        # Секретное число первого игрока уже сгенерировано
-        mp_game.secret_number_p2 = generate_secret_number(number_length)
-        mp_game.p2_ready = True
-        
-        multiplayer_games[game_id] = mp_game
-        user_to_mp_game[creator_id] = game_id
-        user_to_mp_game[user_id] = game_id
-        mp_waiting_rooms[game_id]['waiting'] = False
-        mp_waiting_rooms[game_id]['player2'] = user_id
-        
-        # Сообщаем обоим игрокам о начале игры
-        keyboard1 = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
-        ]
-        reply_markup1 = InlineKeyboardMarkup(keyboard1)
-        
-        # Отправляем сообщение создателю
-        try:
-            await context.bot.send_message(
-                chat_id=creator_id,
-                text=(
-                    f"🎲 <b>Игра началась!</b>\n\n"
-                    f"Твой соперник присоединился!\n"
-                    f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
-                    f"<b>Число соперника:</b> ???\n\n"
-                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
-                ),
-                parse_mode="HTML",
-                reply_markup=reply_markup1
-            )
-        except Exception as e:
-            logger.error(f"Failed to send message to creator {creator_id}: {e}")
-        
-        keyboard2 = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
-        ]
-        reply_markup2 = InlineKeyboardMarkup(keyboard2)
-        
-        # Отправляем сообщение второму игроку
-        await query.edit_message_text(
-            f"🎲 <b>Игра началась!</b>\n\n"
-            f"Ты присоединился к игре!\n"
-            f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
-            f"<b>Число соперника:</b> ???\n\n"
-            f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
-            parse_mode="HTML",
-            reply_markup=reply_markup2
-        )
-        
-        logger.info(f"User {user_id} joined room {game_id}, game started")
-        return
-    
-    if data == "mp_stats":
-        # Статистика мультиплеерной игры
-        if user_id not in user_to_mp_game:
-            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
-            return
-        
-        game_id = user_to_mp_game[user_id]
-        mp_game = multiplayer_games.get(game_id)
-        if not mp_game:
-            await query.edit_message_text("❌ Игра не найдена.")
-            return
-        
-        is_player1 = (user_id == mp_game.player1_id)
-        if is_player1:
-            my_attempts = mp_game.p1_attempts
-            my_history = mp_game.p1_history
-            opponent_attempts = mp_game.p2_attempts
-        else:
-            my_attempts = mp_game.p2_attempts
-            my_history = mp_game.p2_history
-            opponent_attempts = mp_game.p1_attempts
-        
-        stats_text = (
-            f"📊 <b>Статистика мультиплеерной игры</b>\n\n"
-            f"Длина числа: {mp_game.number_length}\n"
-            f"Твоих попыток: {my_attempts}\n"
-            f"Попыток соперника: {opponent_attempts}\n\n"
-        )
-        
-        if my_history:
-            stats_text += "<b>Твои попытки:</b>\n"
-            for i, (guess, bulls, cows) in enumerate(my_history[-10:], 1):
-                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-        else:
-            stats_text += "Пока нет ходов."
-        
-        keyboard = [
-            [InlineKeyboardButton("◀️ Назад к игре", callback_data="mp_back_to_game")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(stats_text, parse_mode="HTML", reply_markup=reply_markup)
-        return
-    
-    if data == "mp_back_to_game":
-        # Возврат к информации об игре
-        if user_id not in user_to_mp_game:
-            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
-            return
-        
-        game_id = user_to_mp_game[user_id]
-        mp_game = multiplayer_games.get(game_id)
-        if not mp_game:
-            await query.edit_message_text("❌ Игра не найдена.")
-            return
-        
-        is_player1 = (user_id == mp_game.player1_id)
-        current_turn_text = "Твой ход!" if mp_game.current_turn == user_id else "Ход соперника."
-        
-        keyboard = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
-            [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            f"🎲 <b>Активная игра</b>\n\n"
-            f"<b>Твоё число:</b> <code>{mp_game.secret_number_p1 if is_player1 else mp_game.secret_number_p2}</code>\n"
-            f"<b>Попыток сделано:</b> {mp_game.p1_attempts if is_player1 else mp_game.p2_attempts}\n"
-            f"<b>{current_turn_text}</b>\n\n"
-            "Отправь число, чтобы сделать ход.",
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
-        return
-    
-    if data == "mp_cancel":
-        # Завершение мультиплеерной игры
-        if user_id not in user_to_mp_game:
-            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
-            return
-        
-        game_id = user_to_mp_game[user_id]
-        mp_game = multiplayer_games.get(game_id)
-        if not mp_game:
-            await query.edit_message_text("❌ Игра не найдена.")
-            return
-        
-        # Удаляем игру
-        player1_id = mp_game.player1_id
-        player2_id = mp_game.player2_id
-        
-        if game_id in multiplayer_games:
-            del multiplayer_games[game_id]
-        if user_id in user_to_mp_game:
-            del user_to_mp_game[user_id]
-        if player1_id in user_to_mp_game:
-            del user_to_mp_game[player1_id]
-        if player2_id in user_to_mp_game:
-            del user_to_mp_game[player2_id]
-        
-        # Показываем меню выбора режима игры
-        keyboard = [
-            [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
-            [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "❌ Игра завершена.\n\nВыберите режим игры:",
-            reply_markup=reply_markup
-        )
-        
-        # Уведомляем второго игрока (если это был один из игроков)
-        other_player = player2_id if user_id == player1_id else player1_id
-        if other_player:
-            try:
-                await context.bot.send_message(
-                    chat_id=other_player,
-                    text="❌ Соперник завершил игру.\n\nВыберите режим игры:",
-                    reply_markup=reply_markup
-                )
-            except Exception as e:
-                logger.error(f"Failed to notify other player {other_player}: {e}")
-        
-        logger.info(f"User {user_id} cancelled multiplayer game {game_id}")
-        return
 
 
 async def handle_mp_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
