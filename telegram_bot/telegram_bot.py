@@ -1326,7 +1326,7 @@ async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_T
                     f"Твой соперник присоединился!\n"
                     f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
                     f"<b>Число соперника:</b> ???\n\n"
-                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                    f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника."
                 ),
                 parse_mode="HTML",
                 reply_markup=reply_markup
@@ -1343,7 +1343,7 @@ async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_T
                     f"Ты присоединился к игре!\n"
                     f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
                     f"<b>Число соперника:</b> ???\n\n"
-                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
+                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление."
                 ),
                 parse_mode="HTML",
                 reply_markup=reply_markup
@@ -1382,7 +1382,7 @@ async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_T
                         f"Твой соперник присоединился!\n"
                         f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p1}</code>\n"
                         f"<b>Число соперника:</b> ???\n\n"
-                        f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника.",
+                        f"Сейчас твой ход! Отправь число из {number_length} цифр, чтобы угадать число соперника."
                     ),
                     parse_mode="HTML",
                     reply_markup=reply_markup
@@ -1397,7 +1397,7 @@ async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_T
                     f"Ты присоединился к игре!\n"
                     f"<b>Твоё загаданное число:</b> <code>{mp_game.secret_number_p2}</code>\n"
                     f"<b>Число соперника:</b> ???\n\n"
-                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление.",
+                    f"Сейчас ход создателя комнаты. Как только он сделает ход, ты получишь уведомление."
                 ),
                 parse_mode="HTML",
                 reply_markup=reply_markup
