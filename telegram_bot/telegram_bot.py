@@ -495,7 +495,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data="mp_menu")]])
         )
         # Устанавливаем флаг, что пользователь хочет присоединиться
-        context.user_data['waiting_for_room_id'] = True
+        context.user_data['waiting_for_mp_join'] = True
         return
     
     elif data.startswith("mp_join_room_"):
@@ -1140,13 +1140,72 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     text = update.message.text.strip()
     
     # Сначала проверяем, не вводит ли пользователь ID комнаты для мультиплеера
-    if context.user_data.get('waiting_for_room_id'):
-        # Теперь ID комнаты вводится только через callback, текстовый ввод отключаем
+    if context.user_data.get('waiting_for_mp_join'):
+        # Пытаемся найти комнату по ID из текстового сообщения
+        game_id = text.strip()
+        
+        if game_id not in mp_waiting_rooms or not mp_waiting_rooms[game_id]['waiting']:
+            await update.message.reply_text(
+                "❌ Комната с таким ID не найдена или игра уже началась.\n\n"
+                "Проверь правильность ID и попробуй снова, или нажми «Назад» для отмены."
+            )
+            context.user_data['waiting_for_mp_join'] = False
+            return
+        
+        room = mp_waiting_rooms[game_id]
+        creator_id = room['creator']
+        number_length = room['length']
+        
+        # Проверяем, не является ли пользователь уже частью этой игры
+        if user_id == creator_id:
+            await update.message.reply_text("❌ Ты не можешь присоединиться к своей собственной комнате!")
+            context.user_data['waiting_for_mp_join'] = False
+            return
+        
+        # Обновляем комнату - добавляем второго игрока
+        mp_game = multiplayer_games.get(game_id)
+        if not mp_game:
+            # Создаём объект игры если ещё не создан
+            mp_game = MultiplayerGame(creator_id, user_id, number_length)
+            multiplayer_games[game_id] = mp_game
+        
+        mp_game.player2_id = user_id
+        mp_waiting_rooms[game_id]['waiting'] = False
+        mp_waiting_rooms[game_id]['player2'] = user_id
+        user_to_mp_game[user_id] = game_id
+        
+        # Отправляем сообщение второму игроку с просьбой загадать число
+        keyboard2 = [
+            [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel")],
+        ]
+        reply_markup2 = InlineKeyboardMarkup(keyboard2)
+        
         await update.message.reply_text(
-            "❌ Для присоединения к игре используй кнопку «Найти игру» в меню мультиплеера.\n"
-            "Текстовый ввод ID больше не поддерживается."
+            f"🎲 <b>Ты присоединился к игре!</b>\n\n"
+            f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
+            f"<b>Длина числа:</b> {number_length}\n\n"
+            f"<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+            f"Как только оба игрока загадают числа, игра начнётся автоматически.",
+            parse_mode="HTML",
+            reply_markup=reply_markup2
         )
-        context.user_data['waiting_for_room_id'] = False
+        # Устанавливаем флаг ожидания загаданного числа от второго игрока
+        context.user_data['waiting_for_mp_number'] = {'game_id': game_id, 'is_creator': False}
+        context.user_data['waiting_for_mp_join'] = False
+        
+        # Уведомляем создателя что игрок присоединился (но игра ещё не началась, ждём чисел)
+        try:
+            await context.bot.send_message(
+                chat_id=creator_id,
+                text=f"🎲 Игрок присоединился к твоей комнате!\n\n"
+                     f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
+                     f"<b>Теперь тебе нужно загадать число.</b>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось уведомить создателя комнаты {game_id}: {e}")
+        
+        logger.info(f"User {user_id} joined room {game_id} via text input")
         return
     
     # Проверяем, не вводит ли игрок своё число для мультиплеерной игры
