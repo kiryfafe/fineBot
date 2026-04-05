@@ -1141,12 +1141,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Сначала проверяем, не вводит ли пользователь ID комнаты для мультиплеера
     if context.user_data.get('waiting_for_room_id'):
-        # Теперь ID комнаты вводится только через callback, текстовый ввод отключаем
-        await update.message.reply_text(
-            "❌ Для присоединения к игре используй кнопку «Найти игру» в меню мультиплеера.\n"
-            "Текстовый ввод ID больше не поддерживается."
-        )
-        context.user_data['waiting_for_room_id'] = False
+        # Пользователь ввёл ID комнаты для присоединения
+        await handle_mp_join_by_id(update, context)
         return
 
     # Проверяем, не вводит ли игрок своё число для мультиплеерной игры
@@ -1161,6 +1157,96 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Наконец, проверяем одиночную игру
     await handle_guess(update, context)
+
+
+
+async def handle_mp_join_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик ввода ID комнаты для присоединения к мультиплеерной игре."""
+    user_id = update.effective_user.id
+    room_id = update.message.text.strip()
+
+    # Сбрасываем флаг ожидания
+    context.user_data['waiting_for_room_id'] = False
+
+    # Проверяем формат ID комнаты
+    if not room_id.startswith('mp_'):
+        await update.message.reply_text(
+            "❌ Неверный формат ID комнаты.\n"
+            "ID должен выглядеть как: mp_123456_7890\n"
+            "Попроси создателя комнаты отправить тебе правильный ID."
+        )
+        return
+
+    # Проверяем, существует ли комната
+    if room_id not in mp_waiting_rooms or not mp_waiting_rooms[room_id]['waiting']:
+        await update.message.reply_text(
+            "❌ Эта комната больше не существует или игра уже началась.\n"
+            "Попроси создателя создать новую комнату."
+        )
+        return
+
+    room = mp_waiting_rooms[room_id]
+    creator_id = room['creator']
+    number_length = room['length']
+
+    # Проверяем, не является ли пользователь уже частью этой игры
+    if user_id == creator_id:
+        await update.message.reply_text("❌ Ты не можешь присоединиться к своей собственной комнате!")
+        return
+
+    # Проверяем, не участвует ли пользователь уже в другой игре
+    if user_id in user_to_mp_game:
+        await update.message.reply_text(
+            "❌ Ты уже участвуешь в другой игре.\n"
+            "Заверши текущую игру перед присоединением к новой."
+        )
+        return
+
+    # Обновляем комнату - добавляем второго игрока
+    mp_game = multiplayer_games.get(room_id)
+    if not mp_game:
+        # Создаём объект игры если ещё не создан
+        mp_game = MultiplayerGame(creator_id, user_id, number_length)
+        multiplayer_games[room_id] = mp_game
+
+    mp_game.player2_id = user_id
+    mp_waiting_rooms[room_id]['waiting'] = False
+    mp_waiting_rooms[room_id]['player2'] = user_id
+    user_to_mp_game[user_id] = room_id
+
+    # Отправляем сообщение второму игроку с просьбой загадать число
+    keyboard2 = [
+        [InlineKeyboardButton("◀️ Отмена", callback_data="mp_cancel")],
+    ]
+    reply_markup2 = InlineKeyboardMarkup(keyboard2)
+
+    await update.message.reply_text(
+        f"🎲 <b>Ты присоединился к игре!</b>\n\n"
+        f"<b>ID комнаты:</b> <code>{room_id}</code>\n"
+        f"<b>Длина числа:</b> {number_length}\n\n"
+        f"<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+        f"Как только оба игрока загадают числа, игра начнётся автоматически.",
+        parse_mode="HTML",
+        reply_markup=reply_markup2
+    )
+    # Устанавливаем флаг ожидания загаданного числа от второго игрока
+    context.user_data['waiting_for_mp_number'] = {'game_id': room_id, 'is_creator': False}
+
+    # Уведомляем создателя что игрок присоединился (но игра ещё не началась, ждём чисел)
+    try:
+        await context.bot.send_message(
+            chat_id=creator_id,
+            text=(
+                f"🎲 <b>Игрок присоединился!</b>\n\n"
+                f"<b>ID комнаты:</b> <code>{room_id}</code>\n"
+                f"<b>Игрок 2:</b> @{update.effective_user.username or 'аноним'}\n\n"
+                f"<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+                f"Как только оба игрока загадают числа, игра начнётся автоматически."
+            ),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify creator: {e}")
 
 
 async def handle_mp_number_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
