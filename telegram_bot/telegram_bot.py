@@ -153,7 +153,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if user_id in user_games and not user_games[user_id].is_game_over:
         # Если активна одиночная игра
         keyboard = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
             [InlineKeyboardButton("❌ Завершить игру", callback_data="cancel")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -175,7 +174,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             current_turn_text = "Твой ход!" if mp_game.current_turn == user_id else "Ход соперника."
 
             keyboard = [
-                [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
                 [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -202,7 +200,6 @@ async def show_main_menu(update_or_query, context, is_callback=False):
     keyboard = [
         [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
         [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-        [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -210,8 +207,7 @@ async def show_main_menu(update_or_query, context, is_callback=False):
         "🎮 <b>Главное меню</b>\n\n"
         "Выберите режим игры:\n"
         "• <b>Одиночная игра</b> - играй против компьютера\n"
-        "• <b>Мультиплеер</b> - играй с другом\n"
-        "• <b>Статистика</b> - посмотри свои результаты"
+        "• <b>Мультиплеер</b> - играй с другом"
     )
 
     if is_callback:
@@ -266,44 +262,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         logger.info(f"User {user_id} started a new game with {number_length}-digit number via button")
 
     elif data == "stats":
-        # Показываем статистику
-        if user_id not in user_games:
-            await query.edit_message_text(
-                "У тебя нет активной игры.\n"
-                "Используй кнопку «Новая игра», чтобы начать."
-            )
-            return
-
-        game = user_games[user_id]
-
-        stats_text = (
-            f"📊 <b>Статистика игры</b>\n\n"
-            f"Длина числа: {game.number_length}\n"
-            f"Попыток: {game.attempts}\n\n"
-        )
-
-        if game.history:
-            stats_text += "<b>История ходов:</b>\n"
-            for i, (guess, bulls, cows) in enumerate(game.history[-10:], 1):
-                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-
-            if len(game.history) > 10:
-                stats_text += f"... и ещё {len(game.history) - 10} ходов"
-        else:
-            stats_text += "Пока нет ходов. Сделай первый ход!"
-
-        # Добавляем кнопки навигации
-        keyboard = []
-        if not game.is_game_over:
-            keyboard.append([InlineKeyboardButton("◀️ Назад к игре", callback_data="back_to_game")])
-
-        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-
-        await query.edit_message_text(
-            stats_text,
-            parse_mode="HTML",
-            reply_markup=reply_markup
-        )
+        # Статистика удалена
+        await query.edit_message_text("❌ Функция статистики удалена.")
+        return
 
     elif data == "cancel":
         # Завершаем одиночную игру
@@ -313,7 +274,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-                [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
@@ -326,7 +286,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             keyboard = [
                 [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
                 [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-                [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
@@ -339,7 +298,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if user_id in user_games and not user_games[user_id].is_game_over:
             game = user_games[user_id]
             keyboard = [
-                [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
                 [InlineKeyboardButton("❌ Завершить игру", callback_data="cancel")],
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -361,7 +319,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         keyboard = [
             [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
             [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -565,47 +522,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     elif data == "mp_stats":
-        # Статистика мультиплеерной игры
-        if user_id not in user_to_mp_game:
-            await query.edit_message_text("❌ У тебя нет активной мультиплеерной игры.")
-            return
-
-        game_id = user_to_mp_game[user_id]
-        mp_game = multiplayer_games.get(game_id)
-        if not mp_game:
-            await query.edit_message_text("❌ Игра не найдена.")
-            return
-
-        is_player1 = (user_id == mp_game.player1_id)
-        if is_player1:
-            my_attempts = mp_game.p1_attempts
-            my_history = mp_game.p1_history
-            opponent_attempts = mp_game.p2_attempts
-        else:
-            my_attempts = mp_game.p2_attempts
-            my_history = mp_game.p2_history
-            opponent_attempts = mp_game.p1_attempts
-
-        stats_text = (
-            f"📊 <b>Статистика мультиплеерной игры</b>\n\n"
-            f"Длина числа: {mp_game.number_length}\n"
-            f"Твоих попыток: {my_attempts}\n"
-            f"Попыток соперника: {opponent_attempts}\n\n"
-        )
-
-        if my_history:
-            stats_text += "<b>Твои попытки:</b>\n"
-            for i, (guess, bulls, cows) in enumerate(my_history[-10:], 1):
-                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-        else:
-            stats_text += "Пока нет ходов."
-
-        keyboard = [
-            [InlineKeyboardButton("◀️ Назад к игре", callback_data="mp_back_to_game")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await query.edit_message_text(stats_text, parse_mode="HTML", reply_markup=reply_markup)
+        # Статистика мультиплеерной игры удалена
+        await query.edit_message_text("❌ Функция статистики удалена.")
         return
 
     elif data == "mp_back_to_game":
@@ -624,7 +542,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         current_turn_text = "Твой ход!" if mp_game.current_turn == user_id else "Ход соперника."
 
         keyboard = [
-            [InlineKeyboardButton("📊 Статистика", callback_data="mp_stats")],
             [InlineKeyboardButton("❌ Завершить игру", callback_data="mp_cancel")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -669,7 +586,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         keyboard = [
             [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
             [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -746,90 +662,59 @@ async def cancel_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Обработчик команды /cancel."""
     user_id = update.effective_user.id
 
+    # Удаляем одиночную игру если есть
     if user_id in user_games:
         del user_games[user_id]
-        # Показываем сообщение о завершении игры с кнопкой "Новая игра"
-        keyboard = [
-            [InlineKeyboardButton("🎮 Новая игра", callback_data="new_game")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "❌ Игра завершена. Используй /newgame, чтобы начать заново.",
-            reply_markup=reply_markup
-        )
-        logger.info(f"User {user_id} cancelled the game")
-    else:
-        await update.message.reply_text(
-            "У тебя нет активной игры.\nИспользуй /newgame, чтобы начать."
-        )
 
-
-async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /stats."""
-    user_id = update.effective_user.id
-
-    # Проверяем одиночную игру
-    if user_id in user_games:
-        game = user_games[user_id]
-        stats_text = (
-            f"📊 <b>Статистика игры</b>\n\n"
-            f"Длина числа: {game.number_length}\n"
-            f"Попыток: {game.attempts}\n\n"
-        )
-
-        if game.history:
-            stats_text += "<b>История ходов:</b>\n"
-            for i, (guess, bulls, cows) in enumerate(game.history[-10:], 1):
-                stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-
-            if len(game.history) > 10:
-                stats_text += f"... и ещё {len(game.history) - 10} ходов"
-        else:
-            stats_text += "Пока нет ходов. Сделай первый ход!"
-
-        await update.message.reply_text(stats_text, parse_mode="HTML")
-        return
-
-    # Проверяем мультиплеерную игру
+    # Удаляем мультиплеерную игру если есть
     if user_id in user_to_mp_game:
         game_id = user_to_mp_game[user_id]
         mp_game = multiplayer_games.get(game_id)
         if mp_game:
-            # Определяем, какой это игрок
-            is_player1 = (user_id == mp_game.player1_id)
-            if is_player1:
-                opponent_attempts = mp_game.p2_attempts
-                opponent_history = mp_game.p2_history
-                secret_number = mp_game.secret_number_p1
-            else:
-                opponent_attempts = mp_game.p1_attempts
-                opponent_history = mp_game.p1_history
-                secret_number = mp_game.secret_number_p2
+            player1_id = mp_game.player1_id
+            player2_id = mp_game.player2_id
+            
+            if game_id in multiplayer_games:
+                del multiplayer_games[game_id]
+            if player1_id in user_to_mp_game:
+                del user_to_mp_game[player1_id]
+            if player2_id in user_to_mp_game:
+                del user_to_mp_game[player2_id]
+            
+            # Уведомляем второго игрока
+            other_player = player2_id if user_id == player1_id else player1_id
+            if other_player:
+                try:
+                    keyboard = [
+                        [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
+                        [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await context.bot.send_message(
+                        chat_id=other_player,
+                        text="❌ Соперник завершил игру.\n\nВыберите режим игры:",
+                        reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to notify other player {other_player}: {e}")
 
-            stats_text = (
-                f"📊 <b>Статистика мультиплеерной игры</b>\n\n"
-                f"Длина числа: {mp_game.number_length}\n"
-                f"Твоих попыток: {mp_game.p1_attempts if is_player1 else mp_game.p2_attempts}\n"
-                f"Попыток соперника: {opponent_attempts}\n\n"
-            )
-
-            if is_player1 and mp_game.p1_history:
-                stats_text += "<b>Твои попытки угадать число соперника:</b>\n"
-                for i, (guess, bulls, cows) in enumerate(mp_game.p1_history[-10:], 1):
-                    stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-            elif not is_player1 and mp_game.p2_history:
-                stats_text += "<b>Твои попытки угадать число соперника:</b>\n"
-                for i, (guess, bulls, cows) in enumerate(mp_game.p2_history[-10:], 1):
-                    stats_text += f"{i}. {guess} → 🐂{bulls} 🐄{cows}\n"
-            else:
-                stats_text += "Пока нет ходов. Сделай первый ход!"
-
-            await update.message.reply_text(stats_text, parse_mode="HTML")
-            return
-
+    # Показываем меню выбора режима игры
+    keyboard = [
+        [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
+        [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     await update.message.reply_text(
-        "У тебя нет активной игры.\nИспользуй /newgame для одиночной игры или /multiplayer для игры с другом."
+        "❌ Игра завершена.\n\nВыберите режим игры:",
+        reply_markup=reply_markup
     )
+    logger.info(f"User {user_id} cancelled the game via command")
+
+
+async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /stats - функция удалена."""
+    await update.message.reply_text("❌ Функция статистики удалена.")
 
 
 async def restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
