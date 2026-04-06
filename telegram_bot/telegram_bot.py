@@ -443,7 +443,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"<b>ID комнаты:</b> <code>{game_id}</code>\n"
             f"<b>Длина числа:</b> {number_length}\n\n"
             "Отправь этот ID другу, чтобы он мог присоединиться.\n"
-            "<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
+            f"<b>Теперь загадай число из {number_length} цифр (без повторяющихся цифр) и отправь его в чат.</b>\n"
             "Как только друг подключится и оба загадаете числа, игра начнётся автоматически.",
             parse_mode="HTML",
             reply_markup=reply_markup
@@ -706,8 +706,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "5. Продолжай, пока не угадаешь всё число!\n\n"
         "<b>Пример:</b>\n"
         "Загадано: 5189\n"
-        "Твоя попытка: 5281\n"
-        "Ответ: 🐂 2 🐄 2 (5 и 8 на правильных местах, 1 и 2 есть, но не там)\n\n"
+        "Твоя попытка: 5981\n"
+        "Ответ: 🐂 2 🐄 2 (5 и 8 на правильных местах, 1 и 9 есть, но не там)\n\n"
         "<b>Команды:</b>\n"
         "/start - Запустить бота и показать главное меню\n"
         "/newgame - Начать новую одиночную игру\n"
@@ -2282,8 +2282,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "5. Продолжай, пока не угадаешь всё число!\n\n"
         "<b>Пример:</b>\n"
         "Загадано: 5189\n"
-        "Твоя попытка: 5281\n"
-        "Ответ: 🐂 2 🐄 2 (5 и 8 на правильных местах, 1 и 2 есть, но не там)\n\n"
+        "Твоя попытка: 5981\n"
+        "Ответ: 🐂 2 🐄 2 (5 и 8 на правильных местах, 1 и 9 есть, но не там)\n\n"
         "<b>Команды:</b>\n"
         "/start - Запустить бота и показать главное меню\n"
         "/newgame - Начать новую одиночную игру\n"
@@ -2989,14 +2989,28 @@ async def handle_guess(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             for i, (attempt_guess, attempt_bulls, attempt_cows) in enumerate(game.history, 1):
                 history_text += f"{i}. <code>{attempt_guess}</code> - 🐂{attempt_bulls} | 🐄{attempt_cows}\n"
 
+        history_text = ""
+        if game.history:
+                history_text = "\n\n<b>Твои попытки:</b>\n"
+                for i, (g, b, c) in enumerate(game.history, 1):
+                    history_text += f"{i}. <code>{g}</code> - 🐂{b} | 🐄{c}\n"
+
         response = (
-            f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
-            f"Загаданное число: <code>{game.secret_number}</code>\n"
-            f"Количество попыток: <b>{game.attempts}</b>"
-            f"{history_text}"
-            f"\nХочешь сыграть ещё? Используй /newgame"
-        )
-        logger.info(f"User {user_id} won in {game.attempts} attempts")
+                f"🎉 <b>Поздравляю! Ты выиграл!</b> 🎉\n\n"
+                f"Загаданное число: <code>{game.secret}</code>\n"
+                f"Количество попыток: <b>{game.attempts}</b>"
+                f"{history_text}"
+            )
+
+        # Отправляем сообщение победителю с кнопками
+        keyboard = [
+                [InlineKeyboardButton("🎮 Одиночная игра", callback_data="new_game")],
+                [InlineKeyboardButton("👥 Мультиплеер", callback_data="mp_menu")],
+                [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+            ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(response, parse_mode="HTML", reply_markup=reply_markup)
     else:
         # Подсказки для разных ситуаций
         hints = []
