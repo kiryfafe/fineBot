@@ -725,34 +725,21 @@ async def new_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /newgame."""
     user_id = update.effective_user.id
 
-    # Определяем длину числа из аргументов
-    number_length = 4
-    if context.args and context.args[0].isdigit():
-        try:
-            number_length = int(context.args[0])
-            if not 3 <= number_length <= 6:
-                await update.message.reply_text(
-                    "⚠️ Длина числа должна быть от 3 до 6. Использую значение по умолчанию: 4"
-                )
-                number_length = 4
-        except ValueError:
-            pass
-
-    # Генерируем секретное число
-    secret_number = generate_secret_number(number_length)
-
-    # Создаём новое состояние игры
-    user_games[user_id] = GameState(secret_number, number_length)
+    # Показываем кнопки для выбора количества цифр
+    keyboard = [
+        [InlineKeyboardButton("3 цифры", callback_data="length_3")],
+        [InlineKeyboardButton("4 цифры", callback_data="length_4")],
+        [InlineKeyboardButton("5 цифр", callback_data="length_5")],
+        [InlineKeyboardButton("6 цифр", callback_data="length_6")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"🎮 <b>Новая игра началась!</b>\n\n"
-        f"Я загадал число из <b>{number_length}</b> цифр.\n"
-        "Попробуй угадать его!\n\n"
-        "Отправь число, чтобы сделать ход.",
+        "🎮 <b>Новая игра</b>\n\n"
+        "Выберите количество цифр в загадываемом числе:",
         parse_mode="HTML",
+        reply_markup=reply_markup
     )
-
-    logger.info(f"User {user_id} started a new game with {number_length}-digit number")
 
 
 async def cancel_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
