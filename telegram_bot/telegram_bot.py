@@ -1415,10 +1415,12 @@ def main() -> None:
             sys.exit(1)
 
     # Создаём приложение
+    from telegram import LinkPreviewOptions
+    
     application = Application.builder() \
         .token(token) \
         .local_mode(False) \
-        .defaults(Defaults(parse_mode='HTML', disable_web_page_preview=True)) \
+        .defaults(Defaults(parse_mode='HTML', link_preview_options=LinkPreviewOptions(is_disabled=True))) \
         .build()
 
     # Регистрируем обработчики команд
